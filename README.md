@@ -1,6 +1,6 @@
-# Laboratorio4-GraficasXComputadoras
+# Modulo7-GraficasXComputadoras (Space Travel)
 
-Lab 4: Shaders
+Modulo7 - Space Travel
 
 ``git clone https://github.com/BrandonReyes0609/Laboratorio4-GraficasXComputadoras.git``
 
@@ -23,7 +23,7 @@ Lab 4: Shaders
 
 2. Añadir todos los archivos
 
-``git add .``
+``git add .`` 
 
 3. Realizar el commit
 
