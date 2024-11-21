@@ -210,7 +210,9 @@ fn main() {
 
     let obj = Obj::load("assets/models/esfera.obj").expect("Failed to load obj");
     let obj1 = Obj::load("assets/models/esfera_luna.obj").expect("Failed to load obj");
+    //let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
     let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
+
 
     let vertex_arrays = obj.get_vertex_array();       // Planetas y Sol
     let vertex_arrays1 = obj1.get_vertex_array();     // Luna
@@ -241,16 +243,15 @@ fn main() {
         venus,    // Venus
         earth,    // Tierra
         marte,    // Marte
-        jupiter,  // Júpiter
-        saturno,  // Saturno
+
     ];
 
     // Radios y velocidades de las órbitas
-    let orbital_radii = [2.0, 3.0, 4.0, 5.0, 6.0, 10.0];
-    let orbital_speeds = [0.02, 0.015, 0.01, 0.008, 0.005, 0.003];
+    let orbital_radii = [3.0, 5.0, 7.5,9.0];
+    let orbital_speeds = [0.02, 0.015, 0.01, 0.008];
 
     // Parámetros para la órbita de la Luna alrededor de la Tierra
-    let luna_radius = 0.5;
+    let luna_radius = 2.0;
     let luna_speed = 0.05;
 
     while window.is_open() {
@@ -258,7 +259,8 @@ fn main() {
             break;
         }
 
-        time += 1.0;
+        //time += 1.0;
+        time = (time + 1.0) % 360.0; // Mantén `time` en un rango razonable
 
         handle_input(&window, &mut cam);
 
@@ -291,7 +293,7 @@ fn main() {
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
 
         // Renderizar Saturno (orbita alrededor del Sol)
-        let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 7.0, 0.002, time);
+        let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 15.0, 0.002, time);
         uniforms.model_matrix = create_model_matrix(saturno_position, 1.1, Vec3::new(0.0, 0.0, 0.0));
         uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
@@ -302,17 +304,6 @@ fn main() {
             .unwrap();
     }
 }
-
-
-// Render the moon with a smaller scale
-//uniforms.model_matrix = create_model_matrix(luna_translation, luna_scale, rotation);
-//uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-//render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
-
-// Render Saturno
-//uniforms.model_matrix = create_model_matrix(saturno_translation, saturno_scale, rotation);
-//uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-//render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
 
 fn handle_input(window: &Window, camera: &mut Camera) {
     let movement_speed = 1.0;
