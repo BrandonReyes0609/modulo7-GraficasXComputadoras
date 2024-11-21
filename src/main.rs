@@ -16,7 +16,7 @@ use vertex::Vertex;
 use obj::Obj;
 use camera::Camera;
 use triangle::triangle;
-use shaders::{vertex_shader, star, luna, neptuno,  mercurio, earth,saturno,marte,urano1,planetaE1,planetaE2,planetaE3};
+use shaders::{vertex_shader, star, luna, neptuno,  mercurio, earth,saturno,marte,urano1,planetaE1,planetaE2,planetaE3,venus,jupiter};
 use fastnoise_lite::{FastNoiseLite, NoiseType, FractalType};
 use fragment::Fragment;
 use color::Color;
@@ -179,6 +179,15 @@ fn render_with_shader(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex
     }
 }
 
+fn calculate_orbital_position(center: Vec3, radius: f32, speed: f32, time: f32) -> Vec3 {
+    let angle = time * speed;
+    Vec3::new(
+        center.x + radius * angle.cos(),
+        center.y,
+        center.z + radius * angle.sin(),
+    )
+}
+
 fn main() {
     let window_width = 800;
     let window_height = 600;
@@ -187,58 +196,27 @@ fn main() {
 
     let mut framebuffer = Framebuffer::new(framebuffer_width, framebuffer_height);
     let mut window = Window::new(
-        "Rust Graphics - Renderer Example",
+        "Rust Graphics - Sistema Solar con Órbitas",
         window_width,
         window_height,
         WindowOptions::default(),
     )
-        .unwrap();
+    .unwrap();
 
     window.set_position(500, 500);
     window.update();
 
     framebuffer.set_background_color(0x000000);
 
-    // model positions
-    let translations = [
-        Vec3::new(-4.5, 0.0, 0.0), // Mercurio
-        Vec3::new(-1.5, 0.0, 0.0), // Venus
-        Vec3::new(1.5, 0.0, 0.0),  // Tierra
-        Vec3::new(4.5, 0.0, 0.0),  // Marte
-        Vec3::new(-4.5, -3.0, 0.0), // Júpiter
-        Vec3::new(1.5, -3.0, 0.0),  // Saturno
-        Vec3::new(4.5, -3.0, 0.0),  // Urano
-    ];
-        
-    // Añadir una traducción específica para la luna
-    let luna_translation = Vec3::new(-1.5, 0.0, 1.0); // Cerca de la Tierra
-    let luna_scale = 0.5; // Reducir tamaño de la Luna
-
-
-    //jupiter
-    // Definir la posición y escala para Saturno
-    let saturno_translation = Vec3::new(2.0, -1.5, -2.0); // Ajustar posición según preferencia
-    let saturno_scale = 1.0; // Tamaño normal para Saturno
-    
-    let rotation = Vec3::new(0.0, 0.0, 0.0);
-    let scale = 1.0f32;
-
-    // camera parameters
-    let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 15.0),
-        Vec3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0)
-    );
-
     let obj = Obj::load("assets/models/esfera.obj").expect("Failed to load obj");
     let obj1 = Obj::load("assets/models/esfera_luna.obj").expect("Failed to load obj");
-    let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj"); // obj para Saturno
+    let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
 
     let vertex_arrays = obj.get_vertex_array();
-    let vertex_arrays1 = obj1.get_vertex_array();
-    let vertex_arrays2 = obj2.get_vertex_array();
+    let vertex_arrays1 = obj1.get_vertex_array(); // Luna
+    let vertex_arrays2 = obj2.get_vertex_array(); // Saturno
 
-    let mut time = 0;
+    let mut time = 0.0;
 
     let noise = create_noise();
     let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
@@ -252,55 +230,66 @@ fn main() {
         noise,
     };
 
-    let shaders = [
-        star,
-        earth,
-        mercurio,
-        luna,
-        neptuno,
-        marte,
-        urano1,
+    let mut cam = Camera::new(
+        Vec3::new(0.0, 0.0, 15.0),
+        Vec3::new(0.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+    );
 
+    let shaders = [
+        mercurio, // Mercurio
+        venus,    // Venus
+        earth,    // Tierra
+        marte,    // Marte
+        jupiter,  // Júpiter
+        saturno,  // Saturno
     ];
+
+    // Radios y velocidades de las órbitas
+    let orbital_radii = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+    let orbital_speeds = [0.02, 0.015, 0.01, 0.008, 0.005, 0.003];
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
             break;
         }
-    
-        time += 1;
-    
-        handle_input(&window, &mut camera);
-    
+
+        time += 1.0;
+
+        handle_input(&window, &mut cam);
+
         framebuffer.clear();
-    
-        // Render models with different shaders
-        for (i, translation) in translations.iter().enumerate() {
-            uniforms.model_matrix = create_model_matrix(*translation, scale, rotation);
-            uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-            uniforms.time = time;
-    
-            let shader = shaders[i % shaders.len()];
-            render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shader);
+
+        // Renderizar el Sol
+        uniforms.model_matrix = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 1.5, Vec3::new(0.0, 0.0, 0.0));
+        uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, star);
+
+        // Renderizar los planetas en órbitas
+        for (i, &radius) in orbital_radii.iter().enumerate() {
+            let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
+            uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
+            uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+            render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
         }
-    
-        // Render the moon with a smaller scale
-        uniforms.model_matrix = create_model_matrix(luna_translation, luna_scale, rotation);
-        uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
-    
-        // Render Saturno
-        uniforms.model_matrix = create_model_matrix(saturno_translation, saturno_scale, rotation);
-        uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
-        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
-    
-        // Update the window with the framebuffer's content
+
+        // Actualizar ventana con el contenido del framebuffer
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
     }
-    
 }
+
+
+// Render the moon with a smaller scale
+//uniforms.model_matrix = create_model_matrix(luna_translation, luna_scale, rotation);
+//uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+//render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
+
+// Render Saturno
+//uniforms.model_matrix = create_model_matrix(saturno_translation, saturno_scale, rotation);
+//uniforms.view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
+//render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
 
 fn handle_input(window: &Window, camera: &mut Camera) {
     let movement_speed = 1.0;

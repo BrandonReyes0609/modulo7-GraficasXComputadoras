@@ -363,3 +363,51 @@ pub fn planetaE3(fragment: &Fragment, uniforms: &Uniforms) -> Color {
 
   noise_color * fragment.intensity
 }
+
+pub fn venus(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+  let zoom = 50.0;
+  let ox = 0.0;
+  let oy = 0.0;
+  let y = fragment.vertex_position.y;
+
+  let noise_value = uniforms.noise.get_noise_2d(
+      (y + oy) * zoom,
+      (ox) * zoom,
+  );
+
+  let spot_threshold = 0.0;
+  let spot_color = Color::new(255, 0, 243); 
+  let base_color = Color::new(255, 0, 243);       
+
+  let noise_color = if noise_value.sin() > spot_threshold {
+      spot_color
+  } else {
+      base_color
+  };
+
+  noise_color * fragment.intensity
+}
+
+pub fn jupiter(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+  let zoom = 50.0;
+  let ox = 0.0;
+  let oy = 0.0;
+  let y = fragment.vertex_position.y;
+
+  let noise_value = uniforms.noise.get_noise_2d(
+      (y + oy) * zoom,
+      (ox) * zoom,
+  );
+
+  let spot_threshold = 0.0;
+  let spot_color = Color::new(255, 0, 243); 
+  let base_color = Color::new(255, 0, 243);       
+
+  let noise_color = if noise_value.sin() > spot_threshold {
+      spot_color
+  } else {
+      base_color
+  };
+
+  noise_color * fragment.intensity
+}
