@@ -119,8 +119,8 @@ pub fn luna(fragment: &Fragment, uniforms: &Uniforms) -> Color {
   );
 
   let spot_threshold = 0.5;
-  let spot_color = Color::new(135, 135, 135); // gris oscuro
-  let base_color = Color::new(191, 191, 191); // Black
+  let spot_color = Color::new(35, 255, 0);//135, 135, 135); // gris oscuro
+  let base_color = Color::new(35, 255, 0);//191, 191, 191); // Black
 
   let noise_color = if noise_value < spot_threshold {
     spot_color

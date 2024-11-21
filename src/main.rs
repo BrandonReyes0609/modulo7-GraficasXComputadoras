@@ -212,9 +212,9 @@ fn main() {
     let obj1 = Obj::load("assets/models/esfera_luna.obj").expect("Failed to load obj");
     let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
 
-    let vertex_arrays = obj.get_vertex_array();
-    let vertex_arrays1 = obj1.get_vertex_array(); // Luna
-    let vertex_arrays2 = obj2.get_vertex_array(); // Saturno
+    let vertex_arrays = obj.get_vertex_array();       // Planetas y Sol
+    let vertex_arrays1 = obj1.get_vertex_array();     // Luna
+    let vertex_arrays2 = obj2.get_vertex_array();     // Saturno
 
     let mut time = 0.0;
 
@@ -246,8 +246,12 @@ fn main() {
     ];
 
     // Radios y velocidades de las órbitas
-    let orbital_radii = [2.0, 3.0, 4.0, 5.0, 6.0, 7.0];
+    let orbital_radii = [2.0, 3.0, 4.0, 5.0, 6.0, 10.0];
     let orbital_speeds = [0.02, 0.015, 0.01, 0.008, 0.005, 0.003];
+
+    // Parámetros para la órbita de la Luna alrededor de la Tierra
+    let luna_radius = 0.5;
+    let luna_speed = 0.05;
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -265,13 +269,32 @@ fn main() {
         uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, star);
 
+        let mut tierra_position = Vec3::new(0.0, 0.0, 0.0);
+
         // Renderizar los planetas en órbitas
         for (i, &radius) in orbital_radii.iter().enumerate() {
             let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
             uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
             uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
             render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
+
+            // Guardar la posición de la Tierra para la Luna
+            if i == 2 {
+                tierra_position = position;
+            }
         }
+
+        // Renderizar la Luna (orbita alrededor de la Tierra)
+        let luna_position = calculate_orbital_position(tierra_position, luna_radius, luna_speed, time);
+        uniforms.model_matrix = create_model_matrix(luna_position, 0.3, Vec3::new(0.0, 0.0, 0.0));
+        uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
+
+        // Renderizar Saturno (orbita alrededor del Sol)
+        let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 7.0, 0.002, time);
+        uniforms.model_matrix = create_model_matrix(saturno_position, 1.1, Vec3::new(0.0, 0.0, 0.0));
+        uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
 
         // Actualizar ventana con el contenido del framebuffer
         window
