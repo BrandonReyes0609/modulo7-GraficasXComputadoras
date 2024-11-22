@@ -3,6 +3,7 @@ use minifb::{Key, Window, WindowOptions};
 use std::time::{Instant, Duration};
 use std::f32::consts::PI;
 use rand::Rng;
+use std::sync::{Arc, Mutex};
 
 mod framebuffer;
 mod triangle;
@@ -138,9 +139,16 @@ fn handle_input(window: &Window, camera: &mut Camera) {
     }
 }
 
-fn handle_nave_input(window: &Window, nave_pos: &mut Vec3, nave_rot: &mut Vec3, speed: &mut f32) {
+fn handle_nave_input(
+    window: &Window,
+    nave_pos: &mut Vec3,
+    nave_rot: &mut Vec3,
+    speed: &mut f32,
+    objects: &[(Vec3, f32)],
+) {
     let rotation_speed = 0.05;
     let movement_speed = 0.2;
+    let mut new_position = *nave_pos;
 
     // Rotación de la nave (girar)
     if window.is_key_down(Key::Left) {
@@ -152,22 +160,28 @@ fn handle_nave_input(window: &Window, nave_pos: &mut Vec3, nave_rot: &mut Vec3, 
 
     // Movimiento de la nave (traslación)
     if window.is_key_down(Key::S) {
-        nave_pos.x += nave_rot.y.sin() * movement_speed;
-        nave_pos.z += nave_rot.y.cos() * movement_speed;
+        new_position.x += nave_rot.y.sin() * movement_speed;
+        new_position.z += nave_rot.y.cos() * movement_speed;
     }
     if window.is_key_down(Key::W) {
-        nave_pos.x -= nave_rot.y.sin() * movement_speed;
-        nave_pos.z -= nave_rot.y.cos() * movement_speed;
+        new_position.x -= nave_rot.y.sin() * movement_speed;
+        new_position.z -= nave_rot.y.cos() * movement_speed;
     }
     if window.is_key_down(Key::D) {
-        nave_pos.x += nave_rot.y.cos() * movement_speed;
-        nave_pos.z -= nave_rot.y.sin() * movement_speed;
+        new_position.x += nave_rot.y.cos() * movement_speed;
+        new_position.z -= nave_rot.y.sin() * movement_speed;
     }
     if window.is_key_down(Key::A) {
-        nave_pos.x -= nave_rot.y.cos() * movement_speed;
-        nave_pos.z += nave_rot.y.sin() * movement_speed;
+        new_position.x -= nave_rot.y.cos() * movement_speed;
+        new_position.z += nave_rot.y.sin() * movement_speed;
+    }
+
+    // Verificar colisión
+    if !check_collision(new_position, objects) {
+        *nave_pos = new_position;
     }
 }
+
 fn calculate_orbital_position(center: Vec3, radius: f32, speed: f32, time: f32) -> Vec3 {
     let angle = time * speed;
     Vec3::new(
@@ -187,6 +201,18 @@ fn render_stars(framebuffer: &mut Framebuffer, star_count: usize) {
         framebuffer.point(x, y, 1.0); // Profundidad de las estrellas arbitraria
     }
 }
+
+fn check_collision(position: Vec3, objects: &[(Vec3, f32)]) -> bool {
+    for (center, radius) in objects {
+        let distance = nalgebra_glm::distance(&position, center);
+        if distance < *radius {
+            return true;
+        }
+    }
+    false
+}
+
+
 
 fn main() {
     let framebuffer_width = 800;
@@ -244,8 +270,26 @@ fn main() {
     ];
 
     // Radios y velocidades de las órbitas
-    let orbital_radii = [3.0, 5.0, 7.5,9.0];
+    //let orbital_radii = [3.0, 5.0, 7.5,9.0];
     let orbital_speeds = [0.02, 0.015, 0.01, 0.008];
+    let orbital_radii = [3.0, 5.0, 7.5, 9.0];
+
+    let mut planet_objects: Vec<(Vec3, f32)> = vec![
+        (Vec3::new(0.0, 0.0, 0.0), 1.5), // Sol
+    ];
+
+    // Agregar planetas dinámicamente
+    for (i, &radius) in orbital_radii.iter().enumerate() {
+        let size = match i {
+            0 => 0.5, // Mercurio
+            1 => 0.6, // Venus
+            2 => 0.8, // Tierra
+            3 => 0.7, // Marte
+            _ => 0.5,
+        };
+        planet_objects.push((Vec3::new(radius, 0.0, 0.0), size));
+    }
+
 
     // Parámetros para la órbita de la Luna alrededor de la Tierra
     let luna_radius = 2.0;
@@ -265,56 +309,74 @@ fn main() {
             continue;
         }
         last_frame = now;
+    
+        framebuffer.clear();
+        render_stars(&mut framebuffer, 500);
+    
+        time = (time + 1.0) % 360.0;
+        let mut tierra_position = Vec3::new(0.0, 0.0, 0.0);
 
-        framebuffer.clear(); // Limpia el framebuffer al inicio del frame
-
-        render_stars(&mut framebuffer, 500); // Dibuja las estrellas después de limpiar el framebuffer
-
-        time = (time + 1.0) % 360.0; // Mantén `time` en un rango razonable
-
-        handle_nave_input(&window, &mut nave_pos, &mut nave_rot, &mut nave_speed); // Procesar entradas
-
-        // Actualizar la cámara para que siga la nave
-        let cam_eye = nave_pos + cam_offset;
-        let cam_center = nave_pos; // La cámara siempre mira hacia la nave
-        uniforms.view_matrix = create_view_matrix(cam_eye, cam_center, Vec3::new(0.0, 1.0, 0.0));
-
-        // Renderizar el Sol y los planetas
+        // Actualizar las posiciones de los planetas en planet_objects
+        planet_objects.clear();
+        planet_objects.push((Vec3::new(0.0, 0.0, 0.0), 1.5)); // Sol
+        for (i, &radius) in orbital_radii.iter().enumerate() {
+            let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
+            let size = match i {
+                0 => 0.5, // Mercurio
+                1 => 0.6, // Venus
+                2 => 0.8, // Tierra
+                3 => 0.7, // Marte
+                _ => 0.5,
+            };
+            planet_objects.push((position, size));
+        }
+    
+        // Procesar entradas de la nave
+        let original_position = nave_pos; // Guardar posición original
+        handle_nave_input(&window, &mut nave_pos, &mut nave_rot, &mut nave_speed, &planet_objects);
+    
+        // Verificar colisión y revertir si es necesario
+        if check_collision(nave_pos, &planet_objects) {
+            nave_pos = original_position; // Revertir posición
+        }
+    
+        // Actualizar la cámara
+        let new_cam_eye = nave_pos + cam_offset;
+        uniforms.view_matrix = create_view_matrix(new_cam_eye, nave_pos, Vec3::new(0.0, 1.0, 0.0));
+    
+        // Renderizar el sistema solar
         uniforms.model_matrix = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 1.5, Vec3::new(0.0, 0.0, 0.0));
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, star);
-
-        let mut tierra_position = Vec3::new(0.0, 0.0, 0.0);
+    
         for (i, &radius) in orbital_radii.iter().enumerate() {
             let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
             uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
             render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
-
+    
             if i == 2 {
                 tierra_position = position;
             }
         }
-
+    
         // Renderizar la Luna
         let luna_position = calculate_orbital_position(tierra_position, luna_radius, luna_speed, time);
         uniforms.model_matrix = create_model_matrix(luna_position, 0.3, Vec3::new(0.0, 0.0, 0.0));
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
-
+    
         // Renderizar Saturno
         let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 15.0, 0.002, time);
         uniforms.model_matrix = create_model_matrix(saturno_position, 1.1, Vec3::new(0.0, 0.0, 0.0));
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
-
+    
         // Renderizar la nave
         uniforms.model_matrix = create_model_matrix(nave_pos, 0.5, nave_rot);
         render_with_shader(&mut framebuffer, &uniforms, &nave_vertex_array, shader_nave);
-
+    
         window
             .update_with_buffer(&framebuffer.buffer, framebuffer_width, framebuffer_height)
             .unwrap();
     }
-
 }
-
 fn render_with_shader(
     framebuffer: &mut Framebuffer,
     uniforms: &Uniforms,
