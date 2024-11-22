@@ -340,7 +340,7 @@ pub fn planetaE2(fragment: &Fragment, uniforms: &Uniforms) -> Color {
   noise_color * fragment.intensity
 }
 
-pub fn planetaE3(fragment: &Fragment, uniforms: &Uniforms) -> Color {
+pub fn shader_nave(fragment: &Fragment, uniforms: &Uniforms) -> Color {
   let zoom = 50.0;
   let ox = 0.0;
   let oy = 0.0;
