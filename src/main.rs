@@ -1,9 +1,10 @@
 use nalgebra_glm::{Vec3, Mat4, look_at, perspective};
-use minifb::{Key, Window, WindowOptions};
+//use minifb::{Key, Window, WindowOptions};
 use std::time::{Instant, Duration};
 use std::f32::consts::PI;
 use rand::Rng;
 use std::sync::{Arc, Mutex};
+use minifb::{Key, MouseMode, MouseButton, Window, WindowOptions};
 
 mod framebuffer;
 mod triangle;
@@ -212,7 +213,63 @@ fn check_collision(position: Vec3, objects: &[(Vec3, f32)]) -> bool {
     false
 }
 
+//----------------------------------
+// Estado del mouse
+struct MouseState {
+    last_position: Option<(f32, f32)>, // Última posición del mouse
+    scroll_delta: f32,                // Cambio en el scroll
+    middle_button_pressed: bool,      // Botón central del mouse presionado
+}
 
+impl MouseState {
+    fn new() -> Self {
+        Self {
+            last_position: None,
+            scroll_delta: 0.0,
+            middle_button_pressed: false,
+        }
+    }
+}
+
+fn handle_mouse_input(
+    window: &Window,
+    mouse_state: &mut MouseState,
+    cam_offset: &mut Vec3,
+    nave_rot: &mut Vec3,
+) {
+    // Manejar el scroll para acercar/alejar
+    if let Some(scroll) = window.get_scroll_wheel() {
+        mouse_state.scroll_delta += scroll.1;
+    }
+
+    if mouse_state.scroll_delta > 0.0 {
+        cam_offset.z -= 1.0; // Acercar zoom
+        mouse_state.scroll_delta = 0.0;
+    } else if mouse_state.scroll_delta < 0.0 {
+        cam_offset.z += 1.0; // Alejar zoom
+        mouse_state.scroll_delta = 0.0;
+    }
+
+    // Verificar si el botón central está presionado
+    mouse_state.middle_button_pressed = window.get_mouse_down(MouseButton::Middle);
+
+    // Manejar el movimiento del mouse para rotar la nave
+    if let Some((x, y)) = window.get_mouse_pos(MouseMode::Clamp) {
+        if mouse_state.middle_button_pressed {
+            if let Some((last_x, last_y)) = mouse_state.last_position {
+                let delta_x = x - last_x;
+                let delta_y = y - last_y;
+
+                nave_rot.y += delta_x * 0.01; // Rotación horizontal
+                nave_rot.x -= delta_y * 0.01; // Rotación vertical
+            }
+        }
+        mouse_state.last_position = Some((x, y));
+    } else {
+        mouse_state.last_position = None;
+    }
+}
+//----------------------------------
 
 fn main() {
     let framebuffer_width = 800;
@@ -226,7 +283,10 @@ fn main() {
     )
     .unwrap();
 
-    let mut cam_offset = Vec3::new(0.0, 5.0, 10.0); // Offset detrás y arriba de la nave
+    //let mut cam_offset = Vec3::new(0.0, 5.0, 10.0); // Offset detrás y arriba de la nave
+    let mut cam_offset = Vec3::new(0.0, 5.0, 20.0);
+    let mut nave_pos = Vec3::new(0.0, 0.0, 10.0);
+    let mut nave_rot = Vec3::new(0.0, 0.0, 0.0);
 
     let nave_obj = Obj::load("assets/models/nave_pro1.obj").expect("Failed to load nave_pro.obj");
     let nave_vertex_array = nave_obj.get_vertex_array();
@@ -303,6 +363,10 @@ fn main() {
     let frame_time = Duration::from_secs_f32(1.0 / 60.0);
     let mut last_frame = Instant::now();
 
+
+    let mut mouse_state = MouseState::new();
+    let frame_time = Duration::from_secs_f32(1.0 / 60.0);
+    let mut last_frame = Instant::now();
     while window.is_open() {
         let now = Instant::now();
         if now - last_frame < frame_time {
@@ -312,6 +376,10 @@ fn main() {
     
         framebuffer.clear();
         render_stars(&mut framebuffer, 500);
+        handle_mouse_input(&window, &mut mouse_state, &mut cam_offset, &mut nave_rot);
+        let new_cam_eye = nave_pos + cam_offset;
+        uniforms.view_matrix = create_view_matrix(new_cam_eye, nave_pos, Vec3::new(0.0, 1.0, 0.0));
+
     
         time = (time + 1.0) % 360.0;
         let mut tierra_position = Vec3::new(0.0, 0.0, 0.0);
