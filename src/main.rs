@@ -17,7 +17,9 @@ use vertex::Vertex;
 use obj::Obj;
 use camera::Camera;
 use triangle::triangle;
-use shaders::{vertex_shader, star, earth,shader_nave};
+//use shaders::{vertex_shader, star, earth,shader_nave};
+use shaders::{vertex_shader, star, luna, neptuno,  mercurio, earth,saturno,marte,urano1,planetaE1,planetaE2,venus,jupiter,shader_nave};
+
 use fragment::Fragment;
 use color::Color;
 use fastnoise_lite::{FastNoiseLite, NoiseType};
@@ -165,7 +167,14 @@ fn handle_nave_input(window: &Window, nave_pos: &mut Vec3, nave_rot: &mut Vec3, 
         nave_pos.z += nave_rot.y.sin() * movement_speed;
     }
 }
-
+fn calculate_orbital_position(center: Vec3, radius: f32, speed: f32, time: f32) -> Vec3 {
+    let angle = time * speed;
+    Vec3::new(
+        center.x + radius * angle.cos(),
+        center.y,
+        center.z + radius * angle.sin(),
+    )
+}
 fn main() {
     let framebuffer_width = 800;
     let framebuffer_height = 600;
@@ -186,6 +195,21 @@ fn main() {
     let obj_sun = Obj::load("assets/models/esfera.obj").expect("Failed to load sun model");
     let vertex_arrays_sun = obj_sun.get_vertex_array();
 
+
+
+    let obj = Obj::load("assets/models/esfera.obj").expect("Failed to load obj");
+    let obj1 = Obj::load("assets/models/esfera_luna.obj").expect("Failed to load obj");
+    //let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
+    let obj2 = Obj::load("assets/models/esfera_anillo2.obj").expect("Failed to load obj");
+    let mut time = 0.0;
+
+
+    let vertex_arrays = obj.get_vertex_array();       // Planetas y Sol
+    let vertex_arrays1 = obj1.get_vertex_array();     // Luna
+    let vertex_arrays2 = obj2.get_vertex_array();     // Saturno
+
+
+    
     let projection_matrix = create_perspective_matrix(framebuffer_width as f32, framebuffer_height as f32);
     let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
 
@@ -197,6 +221,22 @@ fn main() {
         time: 0,
         noise: create_noise(),
     };
+    //varaibles planetas
+    let shaders = [
+        mercurio, // Mercurio
+        venus,    // Venus
+        earth,    // Tierra
+        marte,    // Marte
+
+    ];
+
+    // Radios y velocidades de las órbitas
+    let orbital_radii = [3.0, 5.0, 7.5,9.0];
+    let orbital_speeds = [0.02, 0.015, 0.01, 0.008];
+
+    // Parámetros para la órbita de la Luna alrededor de la Tierra
+    let luna_radius = 2.0;
+    let luna_speed = 0.05;
 
     // Posición y rotación inicial de la nave
     let mut nave_pos = Vec3::new(0.0, 0.0, 0.0);
@@ -212,6 +252,7 @@ fn main() {
             continue;
         }
         last_frame = now;
+        time = (time + 1.0) % 360.0; // Mantén `time` en un rango razonable
 
         handle_nave_input(&window, &mut nave_pos, &mut nave_rot, &mut nave_speed); // Procesar entradas
 
@@ -223,9 +264,43 @@ fn main() {
         uniforms.view_matrix = create_view_matrix(cam_eye, cam_center, Vec3::new(0.0, 1.0, 0.0));
 
         // Renderizar el sol
-        uniforms.model_matrix = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 2.0, Vec3::new(0.0, 0.0, 0.0));
-        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays_sun, star);
+        //uniforms.model_matrix = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 2.0, Vec3::new(0.0, 0.0, 0.0));
+        //render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays_sun, star);
 
+        //-----------------------INIcio planetas y sol------------------
+        // Renderizar el Sol
+        uniforms.model_matrix = create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 1.5, Vec3::new(0.0, 0.0, 0.0));
+        //uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, star);
+
+        let mut tierra_position = Vec3::new(0.0, 0.0, 0.0);
+
+        // Renderizar los planetas en órbitas
+        for (i, &radius) in orbital_radii.iter().enumerate() {
+            let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
+            uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
+            //uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+            render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
+
+            // Guardar la posición de la Tierra para la Luna
+            if i == 2 {
+                tierra_position = position;
+            }
+        }
+
+        // Renderizar la Luna (orbita alrededor de la Tierra)
+        let luna_position = calculate_orbital_position(tierra_position, luna_radius, luna_speed, time);
+        uniforms.model_matrix = create_model_matrix(luna_position, 0.3, Vec3::new(0.0, 0.0, 0.0));
+        //uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays1, luna);
+
+        // Renderizar Saturno (orbita alrededor del Sol)
+        let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 15.0, 0.002, time);
+        uniforms.model_matrix = create_model_matrix(saturno_position, 1.1, Vec3::new(0.0, 0.0, 0.0));
+        //uniforms.view_matrix = create_view_matrix(cam.eye, cam.center, cam.up);
+        render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
+        
+        //-----------------------FIN planetas y sol --------------------
         // Renderizar la nave
         uniforms.model_matrix = create_model_matrix(nave_pos, 0.5, nave_rot);
         render_with_shader(&mut framebuffer, &uniforms, &nave_vertex_array, shader_nave);
@@ -235,6 +310,7 @@ fn main() {
             .unwrap();
     }
 }
+
 
 fn render_with_shader(
     framebuffer: &mut Framebuffer,
