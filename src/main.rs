@@ -1,4 +1,4 @@
-use nalgebra_glm::{Vec3, Mat4, look_at, perspective};
+use nalgebra_glm::{Vec3,Vec4 , Mat4, look_at, perspective};
 //use minifb::{Key, Window, WindowOptions};
 use std::time::{Instant, Duration};
 use std::f32::consts::PI;
@@ -333,11 +333,14 @@ fn render_lasers(framebuffer: &mut Framebuffer, lasers: &[Laser], uniforms: &Uni
         }
     }
 }
-fn draw_orbit(framebuffer: &mut Framebuffer, center: Vec3, radius: f32, uniforms: &Uniforms) {
+fn draw_orbit(
+    framebuffer: &mut Framebuffer,
+    center: Vec3, // Centro de la órbita (posición del Sol)
+    radius: f32,  // Radio de la órbita
+    uniforms: &Uniforms,
+) {
     let segments = 100; // Cantidad de segmentos para aproximar el círculo
     let color = 0x00FFFF; // Color celeste (hexadecimal)
-    let depth = 0.5; // Profundidad fija para las órbitas (ajusta según sea necesario)
-
     let angle_increment = 2.0 * PI / segments as f32;
 
     for i in 0..segments {
@@ -350,16 +353,21 @@ fn draw_orbit(framebuffer: &mut Framebuffer, center: Vec3, radius: f32, uniforms
         let x2 = center.x + radius * angle2.cos();
         let z2 = center.z + radius * angle2.sin();
 
-        let point1 = Vec3::new(x1, center.y, z1);
-        let point2 = Vec3::new(x2, center.y, z2);
+        // Transformar las posiciones de mundo a espacio de pantalla
+        let point1 = uniforms.projection_matrix * uniforms.view_matrix * Vec4::new(x1, center.y, z1, 1.0);
+        let point2 = uniforms.projection_matrix * uniforms.view_matrix * Vec4::new(x2, center.y, z2, 1.0);
 
-        // Transformar puntos a espacio de pantalla
-        let clip1 = uniforms.projection_matrix * uniforms.view_matrix * point1.to_homogeneous();
-        let clip2 = uniforms.projection_matrix * uniforms.view_matrix * point2.to_homogeneous();
-
-        if clip1[3] != 0.0 && clip2[3] != 0.0 {
-            let ndc1 = Vec3::new(clip1[0] / clip1[3], clip1[1] / clip1[3], clip1[2] / clip1[3]);
-            let ndc2 = Vec3::new(clip2[0] / clip2[3], clip2[1] / clip2[3], clip2[2] / clip2[3]);
+        if point1[3] != 0.0 && point2[3] != 0.0 {
+            let ndc1 = Vec3::new(
+                point1[0] / point1[3],
+                point1[1] / point1[3],
+                point1[2] / point1[3],
+            );
+            let ndc2 = Vec3::new(
+                point2[0] / point2[3],
+                point2[1] / point2[3],
+                point2[2] / point2[3],
+            );
 
             let x_screen1 = ((ndc1.x + 1.0) * framebuffer.width as f32 * 0.5) as usize;
             let y_screen1 = ((1.0 - ndc1.y) * framebuffer.height as f32 * 0.5) as usize;
@@ -367,15 +375,15 @@ fn draw_orbit(framebuffer: &mut Framebuffer, center: Vec3, radius: f32, uniforms
             let x_screen2 = ((ndc2.x + 1.0) * framebuffer.width as f32 * 0.5) as usize;
             let y_screen2 = ((1.0 - ndc2.y) * framebuffer.height as f32 * 0.5) as usize;
 
-            // Dibujar líneas entre los puntos adyacentes para formar el círculo
             if x_screen1 < framebuffer.width && y_screen1 < framebuffer.height &&
                x_screen2 < framebuffer.width && y_screen2 < framebuffer.height {
                 framebuffer.set_current_color(color);
-                framebuffer.line_with_depth(x_screen1, y_screen1, depth, x_screen2, y_screen2, depth);
+                framebuffer.line(x_screen1, y_screen1, x_screen2, y_screen2);
             }
         }
     }
 }
+
 
 
 //----------fin rayos
@@ -508,10 +516,25 @@ fn main() {
                 3 => 3.7, // Marte
                 _ => 3.5,
             };
+        
             planet_objects.push((position, size));
+        
+            // Dibuja la órbita con el radio actual
+            draw_orbit(&mut framebuffer, Vec3::new(0.0, 0.0, 4.0), radius, &uniforms);
+        
+            uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
+            render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
         }
         
+        
     
+        //for (i, &radius) in orbital_radii.iter().enumerate() {
+        //    draw_orbit(&mut framebuffer, Vec3::new(0.0, 0.0, 0.0), radius, &uniforms);
+        
+        //    let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
+        //    uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
+        //    render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
+        //}
         // Procesar entradas de la nave
         let original_position = nave_pos; // Guardar posición original
         handle_nave_input(&window, &mut nave_pos, &mut nave_rot, &mut nave_speed, &planet_objects);
@@ -547,13 +570,6 @@ fn main() {
         };
 
 
-        //for (i, &radius) in orbital_radii.iter().enumerate() {
-        //    draw_orbit(&mut framebuffer, Vec3::new(0.0, 0.0, 0.0), radius, &uniforms);
-        //
-        //    let position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), radius, orbital_speeds[i], time);
-        //    uniforms.model_matrix = create_model_matrix(position, 1.0, Vec3::new(0.0, 0.0, 0.0));
-        //    render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays, shaders[i]);
-        //}
         
 
 
@@ -583,6 +599,8 @@ fn main() {
         let saturno_position = calculate_orbital_position(Vec3::new(0.0, 0.0, 0.0), 15.0, 0.002, time);
         uniforms.model_matrix = create_model_matrix(saturno_position, 1.1, Vec3::new(0.0, 0.0, 0.0));
         render_with_shader(&mut framebuffer, &uniforms, &vertex_arrays2, saturno);
+        draw_orbit(&mut framebuffer, Vec3::new(0.0, 0.0, 0.0), 15.0, &uniforms);
+
     
         // Renderizar la nave
         uniforms.model_matrix = create_model_matrix(nave_pos, 0.5, nave_rot);
